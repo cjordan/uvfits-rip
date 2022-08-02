@@ -6,10 +6,10 @@ rust-version = "1.60"
 license = "MPL-2.0"
 
 [features]
-cfitsio-static = ["marlu/cfitsio-static"]
+cfitsio-static = ["mwalib/cfitsio-static"]
 
 [dependencies]
 clap = { version = "3.2.0", features = ["derive", "wrap_help"] }
-marlu = { version = "0.7.0", default-features = false, features = ["mwalib"] }
+mwalib = "0.15.0"
 ndarray = "0.15.4"
 ndarray-npy = "0.8.1"

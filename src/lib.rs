@@ -6,11 +6,7 @@
 
 use std::path::Path;
 
-use marlu::mwalib;
-use mwalib::{
-    fitsio::{errors::check_status as fits_check_status, hdu::FitsHdu, FitsFile},
-    *,
-};
+use mwalib::{fitsio::errors::check_status as fits_check_status, *};
 use ndarray::prelude::*;
 use ndarray_npy::write_npy;
 
@@ -24,11 +20,10 @@ pub fn dump_baselines<P: AsRef<Path>, P2: AsRef<Path>>(
     num_timesteps: usize,
     num_baselines_per_timestep: usize,
     num_channels: usize,
+    xx_and_yy: bool,
 ) -> Result<(), String> {
     let mut uvfits = fits_open!(&uvfits).map_err(|e| e.to_string())?;
-    let hdu = fits_open_hdu!(&mut uvfits, 0).map_err(|e| e.to_string())?;
-    let i_bl = get_baseline_index(&mut uvfits, &hdu)?;
-    println!("BASELINE index: {i_bl}");
+    let _hdu = fits_open_hdu!(&mut uvfits, 0).map_err(|e| e.to_string())?;
 
     // Assume there are 4 polarisations.
     let mut uvfits_vis: Array3<f32> =
@@ -55,41 +50,27 @@ pub fn dump_baselines<P: AsRef<Path>, P2: AsRef<Path>>(
         }
     }
 
-    // Throw away all but the first polarisation.
-    write_npy(output, &uvfits_vis.slice(s![.., .., 0])).map_err(|e| e.to_string())?;
+    if xx_and_yy {
+        // Throw away all but the first and second polarisations.
+        let v = uvfits_vis
+            .into_raw_vec()
+            .chunks_exact(12)
+            .flat_map(|c| [c[0], c[3]])
+            .collect::<Vec<_>>();
+        let a =
+            Array4::from_shape_vec((num_timesteps, row_indices.len(), num_channels, 2), v).unwrap();
+        write_npy(output, &a).map_err(|e| e.to_string())?;
+    } else {
+        // Throw away all but the first polarisation.
+        let v = uvfits_vis
+            .into_raw_vec()
+            .chunks_exact(12)
+            .map(|c| c[0])
+            .collect::<Vec<_>>();
+        let a =
+            Array3::from_shape_vec((num_timesteps, row_indices.len(), num_channels), v).unwrap();
+        write_npy(output, &a).map_err(|e| e.to_string())?;
+    };
 
     Ok(())
-}
-
-fn get_baseline_index(uvfits: &mut FitsFile, hdu: &FitsHdu) -> Result<u8, String> {
-    // Accumulate the "PTYPE" keys.
-    let mut ptypes = Vec::with_capacity(12);
-    for i in 1.. {
-        let ptype: Option<String> = get_optional_fits_key!(uvfits, hdu, &format!("PTYPE{}", i))
-            .map_err(|e| format!("cfitsio error: {e}"))?;
-        match ptype {
-            Some(ptype) => ptypes.push(ptype),
-
-            // We've found the last PTYPE.
-            None => break,
-        }
-    }
-
-    // We only care about the baseline index.
-    let mut baseline_index = None;
-
-    for (i, key) in ptypes.into_iter().enumerate() {
-        let ii = (i + 1) as u8;
-        match key.as_ref() {
-            "BASELINE" => {
-                if baseline_index.is_none() {
-                    baseline_index = Some(ii);
-                    break;
-                }
-            }
-            _ => (),
-        }
-    }
-
-    baseline_index.ok_or(format!("Did not find PTYPE index for BASELINE"))
 }

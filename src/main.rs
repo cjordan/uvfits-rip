@@ -8,6 +8,7 @@ use clap::Parser;
 use uvfits_rip::dump_baselines;
 
 #[derive(clap::Parser)]
+#[clap(infer_long_args = true)]
 struct Args {
     /// Path to the uvfits file to read
     #[clap(short, long)]
@@ -29,6 +30,11 @@ struct Args {
     #[clap(long)]
     num_channels: usize,
 
+    /// Pull out the XX and YY polarisations. The default is to only pull out
+    /// XX.
+    #[clap(long)]
+    xx_and_yy: bool,
+
     #[clap(name = "ROW INDICES")]
     row_indices: Vec<usize>,
 }
@@ -48,6 +54,9 @@ fn main() {
         args.num_timesteps,
         args.num_baselines_per_timestep,
         args.num_channels,
+        args.xx_and_yy,
     )
-    .expect("uh oh")
+    .expect("uh oh");
+
+    println!("Done");
 }
